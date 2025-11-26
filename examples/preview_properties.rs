@@ -9,9 +9,7 @@ extern crate libc;
 use std::ffi;
 use std::ptr;
 
-
 static FILE_PATH: &str = "/YOUR/FILE/PATH/GOES/HERE.jpg";
-
 
 fn get_file_metadata(path: &str) -> *mut gexiv2::GExiv2Metadata {
     let mut err: *mut gexiv2::GError = ptr::null_mut();
@@ -26,7 +24,6 @@ fn get_file_metadata(path: &str) -> *mut gexiv2::GExiv2Metadata {
     }
 }
 
-
 fn main() {
     unsafe {
         let meta = get_file_metadata(FILE_PATH);
@@ -39,9 +36,10 @@ fn main() {
         let mut cur_offset = 0;
         while !(*all_preview_props.offset(cur_offset)).is_null() {
             let preview_prop = *all_preview_props.offset(cur_offset);
-            let mime_type = ffi::CStr::from_ptr(
-                gexiv2::gexiv2_preview_properties_get_mime_type(preview_prop)
-            ).to_str();
+            let mime_type = ffi::CStr::from_ptr(gexiv2::gexiv2_preview_properties_get_mime_type(
+                preview_prop,
+            ))
+            .to_str();
             println!("{:?}", mime_type);
             cur_offset += 1;
         }

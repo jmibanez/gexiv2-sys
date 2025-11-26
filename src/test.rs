@@ -26,7 +26,6 @@ use std::slice;
 
 use super::*;
 
-
 static MINI_JPEG: &[u8] = &[
     255, 216, 255, 219, 00, 43, 00, 03, 02, 02, 02, 02, 02, 03, 02, 02, 02, 03, 03, 03, 03, 04, 06,
     04, 04, 04, 04, 04, 08, 06, 06, 05, 06, 09, 08, 10, 10, 09, 08, 09, 09, 10, 12, 15, 12, 10, 11,
@@ -55,6 +54,16 @@ unsafe fn make_new_metadata() -> *mut GExiv2Metadata {
     metadata
 }
 
+struct Finalizer<F: Fn()> {
+    cleanup: F,
+}
+
+impl<F: Fn()> Drop for Finalizer<F> {
+    fn drop(&mut self) {
+        println!("Drop");
+        (self.cleanup)();
+    }
+}
 
 #[test]
 fn initialize() {
@@ -70,13 +79,15 @@ fn get_version() {
     }
 }
 
-
 // Image information.
 
 #[test]
 fn metadata_get_supports_exif() {
     unsafe {
         let meta = make_new_metadata();
+        let _finalizer = Finalizer {
+            cleanup: || gexiv2_metadata_free(meta),
+        };
         assert_eq!(gexiv2_metadata_get_supports_exif(meta), 1);
     }
 }
@@ -85,6 +96,9 @@ fn metadata_get_supports_exif() {
 fn metadata_get_supports_iptc() {
     unsafe {
         let meta = make_new_metadata();
+        let _finalizer = Finalizer {
+            cleanup: || gexiv2_metadata_free(meta),
+        };
         assert_eq!(gexiv2_metadata_get_supports_iptc(meta), 1);
     }
 }
@@ -93,6 +107,9 @@ fn metadata_get_supports_iptc() {
 fn metadata_get_supports_xmp() {
     unsafe {
         let meta = make_new_metadata();
+        let _finalizer = Finalizer {
+            cleanup: || gexiv2_metadata_free(meta),
+        };
         assert_eq!(gexiv2_metadata_get_supports_xmp(meta), 1);
     }
 }
@@ -101,6 +118,9 @@ fn metadata_get_supports_xmp() {
 fn metadata_get_mime_type() {
     unsafe {
         let meta = make_new_metadata();
+        let _finalizer = Finalizer {
+            cleanup: || gexiv2_metadata_free(meta),
+        };
         let result = gexiv2_metadata_get_mime_type(meta);
         let result = ffi::CStr::from_ptr(result).to_str().unwrap();
         assert_eq!(result, "image/jpeg");
@@ -111,6 +131,9 @@ fn metadata_get_mime_type() {
 fn metadata_get_pixel_width() {
     unsafe {
         let meta = make_new_metadata();
+        let _finalizer = Finalizer {
+            cleanup: || gexiv2_metadata_free(meta),
+        };
         assert_eq!(gexiv2_metadata_get_pixel_width(meta), 1);
     }
 }
@@ -119,10 +142,12 @@ fn metadata_get_pixel_width() {
 fn metadata_get_pixel_height() {
     unsafe {
         let meta = make_new_metadata();
+        let _finalizer = Finalizer {
+            cleanup: || gexiv2_metadata_free(meta),
+        };
         assert_eq!(gexiv2_metadata_get_pixel_height(meta), 1);
     }
 }
-
 
 // Helper & convenience getters/setters.
 
@@ -130,11 +155,16 @@ fn metadata_get_pixel_height() {
 fn metadata_set_and_get_metadata_pixel_width() {
     unsafe {
         let meta = make_new_metadata();
-        gexiv2_metadata_set_metadata_pixel_width(meta, 2);
-        assert_eq!(gexiv2_metadata_get_metadata_pixel_width(meta), 2);
+        let _finalizer = Finalizer {
+            cleanup: || gexiv2_metadata_free(meta),
+        };
+        gexiv2_metadata_set_metadata_pixel_width(meta, 2, ptr::null_mut());
+        assert_eq!(
+            gexiv2_metadata_get_metadata_pixel_width(meta, ptr::null_mut()),
+            2
+        );
     }
 }
-
 
 // Tag information functions.
 
@@ -172,7 +202,7 @@ fn metadata_is_xmp_tag() {
 fn metadata_get_tag_label() {
     unsafe {
         let tag = ffi::CString::new("Exif.Image.ImageDescription").unwrap();
-        let result = gexiv2_metadata_get_tag_label(tag.as_ptr());
+        let result = gexiv2_metadata_get_tag_label(tag.as_ptr(), ptr::null_mut());
         let result = ffi::CStr::from_ptr(result).to_str().unwrap();
         assert_eq!(result, "Image Description");
     }
@@ -182,7 +212,7 @@ fn metadata_get_tag_label() {
 fn metadata_get_tag_description() {
     unsafe {
         let tag = ffi::CString::new("Exif.Image.FillOrder").unwrap();
-        let result = gexiv2_metadata_get_tag_description(tag.as_ptr());
+        let result = gexiv2_metadata_get_tag_description(tag.as_ptr(), ptr::null_mut());
         let result = ffi::CStr::from_ptr(result).to_str().unwrap();
         assert_eq!(result, "The logical order of bits within a byte");
     }
@@ -192,12 +222,11 @@ fn metadata_get_tag_description() {
 fn metadata_get_tag_type() {
     unsafe {
         let tag = ffi::CString::new("Exif.Image.ImageDescription").unwrap();
-        let result = gexiv2_metadata_get_tag_type(tag.as_ptr());
+        let result = gexiv2_metadata_get_tag_type(tag.as_ptr(), ptr::null_mut());
         let result = ffi::CStr::from_ptr(result).to_str().unwrap();
         assert_eq!(result, "Ascii");
     }
 }
-
 
 // Exif thumbnail getter/setters.
 
@@ -207,15 +236,24 @@ fn metadata_get_tag_type() {
 fn metadata_get_and_set_exif_thumbnail_from_buffer() {
     unsafe {
         let meta = make_new_metadata();
+        let _finalizer = Finalizer {
+            cleanup: || gexiv2_metadata_free(meta),
+        };
         let mut thumb: *mut u8 = ptr::null_mut();
         let mut thumb_size: libc::c_int = 0;
-        assert_eq!(gexiv2_metadata_get_exif_thumbnail(meta, &mut thumb, &mut thumb_size), 0);
+        assert_eq!(
+            gexiv2_metadata_get_exif_thumbnail(meta, &mut thumb, &mut thumb_size),
+            0
+        );
         gexiv2_metadata_set_exif_thumbnail_from_buffer(
             meta,
             MINI_JPEG.as_ptr(),
             MINI_JPEG.len() as libc::c_int,
         );
-        assert_eq!(gexiv2_metadata_get_exif_thumbnail(meta, &mut thumb, &mut thumb_size), 1);
+        assert_eq!(
+            gexiv2_metadata_get_exif_thumbnail(meta, &mut thumb, &mut thumb_size),
+            1
+        );
         assert_eq!(MINI_JPEG, slice::from_raw_parts(thumb, thumb_size as usize));
     }
 }
@@ -224,6 +262,9 @@ fn metadata_get_and_set_exif_thumbnail_from_buffer() {
 fn metadata_set_exif_thumbnail_from_file() {
     unsafe {
         let meta = make_new_metadata();
+        let _finalizer = Finalizer {
+            cleanup: || gexiv2_metadata_free(meta),
+        };
 
         let tmp_dir = tempfile::tempdir().unwrap();
         let tmp_file_path = tmp_dir.path().join("thumb.jpg");
@@ -240,7 +281,10 @@ fn metadata_set_exif_thumbnail_from_file() {
 
         let mut thumb: *mut u8 = ptr::null_mut();
         let mut thumb_size: libc::c_int = 0;
-        assert_eq!(gexiv2_metadata_get_exif_thumbnail(meta, &mut thumb, &mut thumb_size), 1);
+        assert_eq!(
+            gexiv2_metadata_get_exif_thumbnail(meta, &mut thumb, &mut thumb_size, &mut err),
+            1
+        );
         assert_eq!(MINI_JPEG, slice::from_raw_parts(thumb, thumb_size as usize));
     }
 }
@@ -251,6 +295,9 @@ fn metadata_set_exif_thumbnail_from_file() {
 fn metadata_erase_exif_thumbnail() {
     unsafe {
         let meta = make_new_metadata();
+        let _finalizer = Finalizer {
+            cleanup: || gexiv2_metadata_free(meta),
+        };
         let mut thumb: *mut u8 = ptr::null_mut();
         let mut thumb_size: libc::c_int = 0;
         gexiv2_metadata_set_exif_thumbnail_from_buffer(
@@ -258,12 +305,17 @@ fn metadata_erase_exif_thumbnail() {
             MINI_JPEG.as_ptr(),
             MINI_JPEG.len() as libc::c_int,
         );
-        assert_eq!(gexiv2_metadata_get_exif_thumbnail(meta, &mut thumb, &mut thumb_size), 1);
+        assert_eq!(
+            gexiv2_metadata_get_exif_thumbnail(meta, &mut thumb, &mut thumb_size),
+            1
+        );
         gexiv2_metadata_erase_exif_thumbnail(meta);
-        assert_eq!(gexiv2_metadata_get_exif_thumbnail(meta, &mut thumb, &mut thumb_size), 0);
+        assert_eq!(
+            gexiv2_metadata_get_exif_thumbnail(meta, &mut thumb, &mut thumb_size),
+            0
+        );
     }
 }
-
 
 // Logging.
 

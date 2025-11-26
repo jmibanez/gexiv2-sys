@@ -15,17 +15,26 @@
 
 //! Confirm gexiv2 library exists on the system.
 
+extern crate cc;
 extern crate pkg_config;
 
 fn main() {
-    match pkg_config::find_library("gexiv2") {
-        Ok(_) => (),
+    let mut cfg = cc::Build::new();
+    let gexiv2_lib = match pkg_config::Config::new().atleast_version("0.15").find("gexiv2") {
+        Ok(lib) => lib,
         Err(e) => {
             println!(
-                "\nThe gexiv2 library was not found by pkg-config/pkgconf on your system.\n\n\
+                "\nThe gexiv2 library (at least version 0.15) was not found by pkg-config/pkgconf on your system.\n\n\
                  Consult the README.md file for suggestions on how to acquire it."
             );
             panic!("{}", e);
         }
+    };
+    cfg.file("src/glue.cpp");
+
+    for path in gexiv2_lib.include_paths {
+        cfg.include(path);
     }
+
+    cfg.compile("gexiv2_sys_glue");
 }
